@@ -1,0 +1,26 @@
+file_monitoring:
+  all_directories: false
+  included_directories:
+    - config
+    - conf
+  excluded_directories:
+    # used for memory management and processes - ignore for file monitoring - useless noise
+    - /proc
+    - /dev/shm
+    - /var/log
+    # trusted sources
+    - JetBrains
+    - Steam
+    - /home
+process_monitoring:
+  audit_all_processes: false
+  exclude_specific_processes:
+    # ignore web-browsers
+    - mozilla
+    - firefox
+    - googlechrome
+    - chromium
+    - edge
+    # trusted applications
+    - Steam
+    - JetBrains
