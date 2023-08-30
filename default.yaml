@@ -13,7 +13,7 @@ file_monitoring:
     - Steam
     - /home
 process_monitoring:
-  audit_all_processes: false
+  audit_all_processes: true
   exclude_specific_processes:
     # ignore web-browsers
     - mozilla
@@ -24,3 +24,5 @@ process_monitoring:
     # trusted applications
     - Steam
     - JetBrains
+backdoor_monitoring:
+  all_directories: true
