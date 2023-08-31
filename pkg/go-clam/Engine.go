@@ -36,7 +36,6 @@ type ClEngineFileReport struct {
 }
 
 func init() {
-
 	GlobalEngine = ClEngine{
 		instance:           C.create_cl_engine(),
 		defaultScanOptions: C.get_default_options(),
@@ -52,6 +51,24 @@ func GetClEngineInstance() ClEngine {
 func CloseClEngine() {
 	C.cl_engine_free(GlobalEngine.instance)
 	C.free(unsafe.Pointer(GlobalEngine.defaultScanOptions))
+}
+
+// setGeneralOptions sets general field in cl_engine_options
+// (value example : CL_SCAN_GENERAL_ALLMATCHES | CL_SCAN_GENERAL_HEURISTICS | CL_SCAN_GENERAL_HEURISTIC_PRECEDENCE)
+func (cle *ClEngine) setGeneralOptions(value uint32) {
+	(*cle.defaultScanOptions).general = value
+}
+
+// setParseOptions sets parse field in cl_engine_options
+// (value example : CL_SCAN_PARSE_ARCHIVE | CL_SCAN_PARSE_PDF)
+func (cle *ClEngine) setParseOptions(value uint32) {
+	(*cle.defaultScanOptions).parse = value
+}
+
+// setHeuristicOptions sets heuristic field in cl_engine_options
+// (value example : CL_SCAN_HEURISTIC_ENCRYPTED_ARCHIVE | CL_SCAN_HEURISTIC_PARTITION_INTXN | CL_SCAN_HEURISTIC_STRUCTURED)
+func (cle *ClEngine) setHeuristicOptions(value uint32) {
+	(*cle.defaultScanOptions).heuristic = value
 }
 
 func (cle *ClEngine) ScanFile(filePath string) ClEngineFileReport {
