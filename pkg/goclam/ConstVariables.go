@@ -1,4 +1,4 @@
-package go_clam
+package goclam
 
 const (
 	/* general */

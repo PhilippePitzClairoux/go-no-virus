@@ -2,7 +2,7 @@ package main
 
 import (
 	"endpointSecurityAgent/internal"
-	go_clam "endpointSecurityAgent/pkg/go-clam"
+	go_clam "endpointSecurityAgent/pkg/goclam"
 	"log"
 	"os"
 )
@@ -14,7 +14,7 @@ func main() {
 	scheduler := internal.NewScheduler(errChan, exitChan)
 	conf, err := internal.LoadApplicationConfiguration("./default.yaml")
 
-	// register file
+	// register file monitoring
 	if conf.FileMonitoring.AllDirectories {
 		err = scheduler.RegisterTask(internal.Task(conf.FileMonitoring))
 		if err != nil {
@@ -30,6 +30,7 @@ func main() {
 		}
 	}
 
+	// register virus detection
 	err = scheduler.RegisterTask(internal.Task(conf.BackDoorMonitoring))
 	if err != nil {
 		log.Fatal(err)

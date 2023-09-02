@@ -9,6 +9,7 @@ import (
 )
 
 func init() {
+	log.Println("connecting/creating database...")
 	db := GetDatabase()
 
 	defer db.Close()
@@ -26,7 +27,8 @@ func init() {
 	CREATE TABLE IF NOT EXISTS file_monitoring_conflicts (
 		path VARCHAR(2048) NOT NULL,
 		new_hash VARCHAR(255),
-		old_hash VARCHAR(255)
+		old_hash VARCHAR(255),
+		checked boolean DEFAULT false
 	);
 	
 	CREATE TABLE IF NOT EXISTS suspicious_process (
@@ -35,6 +37,13 @@ func init() {
 	  cmd_line VARCHAR,
 	  suspicious_connection VARCHAR
 	);
+
+	CREATE TABLE IF NOT EXISTS virus_detected (
+	    inserted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	    path VARCHAR(2048) NOT NULL,
+	    cause VARCHAR(255) NOT NULL,
+	    PRIMARY KEY (path, cause)
+	)
 `)
 	if err != nil {
 		log.Fatalf("Could not create table - %s\n", err)

@@ -1,5 +1,5 @@
 file_monitoring:
-  all_directories: false
+  all_directories: true
   included_directories:
     - config
     - conf
@@ -11,7 +11,6 @@ file_monitoring:
     # trusted sources
     - JetBrains
     - Steam
-    - /home
 process_monitoring:
   audit_all_processes: true
   exclude_specific_processes:
@@ -24,5 +23,9 @@ process_monitoring:
     # trusted applications
     - Steam
     - JetBrains
-backdoor_monitoring:
+virus_monitoring:
   all_directories: true
+  excluded_directories:
+    - /etc/brltty/Contraction
+    - Steam
+    - JetBrains

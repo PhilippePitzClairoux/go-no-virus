@@ -31,7 +31,6 @@ func (t FileMonitoringTask) ExecuteTask() error {
 		case err := <-errChan:
 			return err
 		case files := <-outputChan:
-			log.Println("Got a batch of file - inserting them in database")
 			go batchStoreFileHash(files, errChan)
 		case <-time.After(4 * time.Second):
 			return nil
@@ -125,7 +124,6 @@ func batchStoreFileHash(files []string, errChan chan error) {
 			return
 		}
 	}
-
 }
 
 func insertFileHash(db *sql.DB, files []string) (sql.Result, error) {
