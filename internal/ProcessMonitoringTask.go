@@ -3,7 +3,6 @@ package internal
 import (
 	"github.com/shirou/gopsutil/net"
 	"github.com/shirou/gopsutil/process"
-	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -13,21 +12,40 @@ type ProcessMonitoringTask struct {
 	// configuration
 	AuditAllProcesses        bool     `yaml:"audit_all_processes"`
 	ExcludeSpecificProcesses []string `yaml:"exclude_specific_processes"`
+	SensitiveFiles           []string `yaml:"sensitive_files"`
 }
 
-type aggregateProcInfo struct {
-	children    []*process.Process
-	parent      *process.Process
-	background  bool
-	cmdline     []string
-	connections []net.ConnectionStat
-	memInfo     *process.MemoryInfoStat
-	files       []process.OpenFilesStat
-	sus         []string
+type aggregateProcessInfo struct {
+	children              []*process.Process
+	parent                *process.Process
+	background            bool
+	cmdline               []string
+	connections           []net.ConnectionStat
+	memInfo               *process.MemoryInfoStat
+	files                 []process.OpenFilesStat
+	suspiciousConnections []string
+	suspiciousFiles       []string
 }
 
 var isLocalhostIp = regexp.MustCompile("(0.0.0.0|127.0.0.1|:+)")
 
+/*
+Define function to get aggregateProcessInfo field (suspicion and data) to make some parts of the code more generic and
+reduce duplication
+*/
+type aggregateProcessInfoField func(pmt *aggregateProcessInfo) (string, []string)
+
+// fileField returns suspiciousFiles from aggregateProcessInfo
+func fileField(api *aggregateProcessInfo) (string, []string) {
+	return "file", api.suspiciousFiles
+}
+
+// connectionField returns suspiciousConnections from aggregateProcessInfo
+func connectionField(api *aggregateProcessInfo) (string, []string) {
+	return "network", api.suspiciousConnections
+}
+
+// ExecuteTask executes the ProcessMonitoringTask
 func (t ProcessMonitoringTask) ExecuteTask() error {
 
 	processes, err := getProcList()
@@ -43,14 +61,17 @@ func (t ProcessMonitoringTask) ExecuteTask() error {
 	return nil
 }
 
+// GetNewTimer defines how long we should wait before running this again
 func (t ProcessMonitoringTask) GetNewTimer() time.Timer {
 	return *time.NewTimer(time.Minute * 2)
 }
 
+// GetTaskName - return task name
 func (t ProcessMonitoringTask) GetTaskName() string {
 	return "ProcessMonitoringTask"
 }
 
+// getProcList returns all the running process on the current operating system
 func getProcList() ([]*process.Process, error) {
 	processes, err := process.Processes()
 	if err != nil {
@@ -60,8 +81,11 @@ func getProcList() ([]*process.Process, error) {
 	return processes, nil
 }
 
+// auditProcesses function that goes through all the processes and audits them. Will mark process as suspicious
+// if there's outgoing connections and/or if the process is accessing sensitive files (path matches sensitive_files in configuration) .
+// processes that match exclude_specific_processes will be ignored.
 func (t ProcessMonitoringTask) auditProcesses(processes []*process.Process) error {
-	suspiciousProcessConnections := make(map[int32]*aggregateProcInfo)
+	suspiciousProcesses := make(map[int32]*aggregateProcessInfo)
 
 	for _, proc := range processes {
 		info := gatherProcessInformation(proc)
@@ -70,45 +94,70 @@ func (t ProcessMonitoringTask) auditProcesses(processes []*process.Process) erro
 			continue
 		}
 
-		if len(info.connections) > 0 {
-			for _, conn := range info.connections {
-				if conn.Status != "NONE" && !isLocalhostIp.MatchString(conn.Raddr.IP) {
-					if _, ok := suspiciousProcessConnections[proc.Pid]; !ok {
-						suspiciousProcessConnections[proc.Pid] = info
-					}
-					info.sus = append(info.sus, conn.Raddr.String())
-				}
-			}
-		}
+		t.addSuspiciousConnections(info, &suspiciousProcesses, proc)
+		t.addSuspiciousFiles(info, &suspiciousProcesses, proc)
 	}
 
-	if len(suspiciousProcessConnections) > 0 {
-		log.Println("Found suspicious connections...")
-		for key, value := range suspiciousProcessConnections {
-			pid := key
-			parentProcess := getParentProcess(key)
+	if len(suspiciousProcesses) > 0 {
+		err := t.handleSuspiciousProcess(suspiciousProcesses, connectionField)
+		if err != nil {
+			return err
+		}
 
-			if parentProcess != nil && parentProcess.Pid != key {
-				pid = parentProcess.Pid
-			}
-
-			err := storeSuspiciousConnections(pid, value)
-			if err != nil {
-				return err
-			}
+		err = t.handleSuspiciousProcess(suspiciousProcesses, fileField)
+		if err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
+// handleSuspiciousProcess will get parentProcess (if it exists) and store event into the database for later review
+func (t ProcessMonitoringTask) handleSuspiciousProcess(suspiciousProcess map[int32]*aggregateProcessInfo, getSuspicionAndData aggregateProcessInfoField) error {
+	for key, processInfo := range suspiciousProcess {
+		pid := key
+		parentProcess := getParentProcess(key)
+
+		if parentProcess != nil && parentProcess.Pid != key {
+			pid = parentProcess.Pid
+		}
+
+		suspicion, data := getSuspicionAndData(processInfo)
+		err := storeSuspiciousProcess(pid, processInfo, suspicion, data)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// will add a suspiciousConnection to aggregateProcessInfo if it's status is not NONE and the IP isn't localhost
+func (t ProcessMonitoringTask) addSuspiciousConnections(processInfo *aggregateProcessInfo, suspiciousProcessConnections *map[int32]*aggregateProcessInfo, proc *process.Process) {
+	for _, conn := range processInfo.connections {
+		if conn.Status != "NONE" && !isLocalhostIp.MatchString(conn.Raddr.IP) {
+			if _, ok := (*suspiciousProcessConnections)[proc.Pid]; !ok {
+				(*suspiciousProcessConnections)[proc.Pid] = processInfo
+			}
+			processInfo.suspiciousConnections = append(processInfo.suspiciousConnections, conn.Raddr.String())
+		}
+	}
+}
+
+// getParentProcess will GetParentProcess() untill we find the command that started the problematic process
 func getParentProcess(key int32) *process.Process {
-	proc, _ := process.NewProcess(key)
+	proc, err := process.NewProcess(key)
+	if err != nil {
+		return nil
+	}
 
 	for {
-		cmdLine, _ := proc.CmdlineSlice()
-		if len(cmdLine) == 0 {
-			parent, _ := proc.Parent()
+		cmdLine, err := proc.CmdlineSlice()
+		if len(cmdLine) == 0 && err == nil {
+			parent, err := proc.Parent()
+			if err != nil {
+				return proc
+			}
 			proc = parent
 		} else {
 			return proc
@@ -116,6 +165,7 @@ func getParentProcess(key int32) *process.Process {
 	}
 }
 
+// ignoreProc checks if the process is contained in ExcludeSpecificProcesses
 func (t ProcessMonitoringTask) ignoreProc(procName []string) bool {
 	if len(procName) == 0 {
 		// if there's no proc name, it's probably a sub-process or a thread
@@ -129,7 +179,33 @@ func (t ProcessMonitoringTask) ignoreProc(procName []string) bool {
 	return false
 }
 
-func gatherProcessInformation(proc *process.Process) *aggregateProcInfo {
+// addSuspiciousFile will add an entry to aggregateProcessInfo if we consider the process suspicious
+func (t ProcessMonitoringTask) addSuspiciousFiles(procInfo *aggregateProcessInfo, m *map[int32]*aggregateProcessInfo, proc *process.Process) {
+	if _, ok := (*m)[proc.Pid]; !ok {
+		(*m)[proc.Pid] = procInfo
+	}
+
+	var suspiciousFileArrayReference = &((*m)[proc.Pid].suspiciousFiles)
+	for _, file := range procInfo.files {
+		if t.suspiciousFile(file.Path) {
+			*suspiciousFileArrayReference = append(*suspiciousFileArrayReference, file.Path)
+		}
+	}
+}
+
+// suspiciousFile whether the filepath matches an entry in sensitive_files
+func (t ProcessMonitoringTask) suspiciousFile(path string) bool {
+	for _, file := range t.SensitiveFiles {
+		if strings.Contains(path, file) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// gatherProcessInformation returns an aggregateProcessInfo for a process.Process
+func gatherProcessInformation(proc *process.Process) *aggregateProcessInfo {
 	children, _ := proc.Children()
 	parent, _ := proc.Parent()
 	background, _ := proc.Background()
@@ -138,7 +214,7 @@ func gatherProcessInformation(proc *process.Process) *aggregateProcInfo {
 	info, _ := proc.MemoryInfo()
 	files, _ := proc.OpenFiles()
 
-	return &aggregateProcInfo{
+	return &aggregateProcessInfo{
 		children,
 		parent,
 		background,
@@ -147,17 +223,24 @@ func gatherProcessInformation(proc *process.Process) *aggregateProcInfo {
 		info,
 		files,
 		make([]string, 0),
+		make([]string, 0),
 	}
 }
 
-func storeSuspiciousConnections(pid int32, info *aggregateProcInfo) error {
+// storeSuspiciousProcess will store in the database the process we've marked as suspicious (either for network or file reasons)
+func storeSuspiciousProcess(pid int32, info *aggregateProcessInfo, suspicionType string, data []string) error {
+	if len(data) == 0 {
+		// nothing to do - skip
+		return nil
+	}
+
 	db := GetDatabase()
-	query := `INSERT INTO suspicious_process (pid, cmd_line, suspicious_connection) VALUES `
+	query := `INSERT INTO suspicious_process (pid, cmd_line, suspicion_type, data) VALUES `
 	var values []interface{}
 
-	for _, conn := range info.sus {
-		query += "(?, ?, ?),"
-		values = append(values, pid, strings.Join(info.cmdline, " "), conn)
+	for _, cause := range data {
+		query += "(?, ?, ?, ?),"
+		values = append(values, pid, strings.Join(info.cmdline, " "), suspicionType, cause)
 	}
 
 	// remove extra ,

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"io"
 	"io/fs"
 	"log"
@@ -49,8 +50,9 @@ func (t FileMonitoringTask) GetTaskName() string {
 func (t FileMonitoringTask) getFilePathsFromRootDir(out chan []string, errChan chan error) {
 	var files = make([]string, 0)
 	err := filepath.Walk("/", func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return err
+		if errors.Is(err, fs.ErrPermission) {
+			log.Printf("Skipping directory %s - access denied", path)
+			return filepath.SkipDir
 		}
 
 		if info.IsDir() && t.ignoreDirectory(path) {

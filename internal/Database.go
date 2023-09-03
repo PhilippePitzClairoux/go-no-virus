@@ -34,8 +34,9 @@ func init() {
 	CREATE TABLE IF NOT EXISTS suspicious_process (
 	  inserted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 	  pid INT NOT NULL,
-	  cmd_line VARCHAR,
-	  suspicious_connection VARCHAR
+	  cmd_line TEXT,
+	  suspicion_type TEXT CHECK( suspicion_type IN ('network', 'file')),
+	  data TEXT
 	);
 
 	CREATE TABLE IF NOT EXISTS virus_detected (
