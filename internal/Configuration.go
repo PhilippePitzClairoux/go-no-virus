@@ -9,7 +9,7 @@ import (
 type ApplicationConfiguration struct {
 	FileMonitoring     FileMonitoringTask    `yaml:"file_monitoring"`
 	ProcessMonitoring  ProcessMonitoringTask `yaml:"process_monitoring"`
-	BackDoorMonitoring BackdoorDetectionTask `yaml:"back_door_monitoring"`
+	BackDoorMonitoring VirusDetectionTask    `yaml:"virus_monitoring"`
 }
 
 func LoadApplicationConfiguration(location string) (ApplicationConfiguration, error) {

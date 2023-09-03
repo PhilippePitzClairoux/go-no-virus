@@ -1,5 +1,8 @@
 # EndpointSecurityAgent
 
+## Dependencies
+You must install clamav-devel in order to run this project.
+
 ## Project scope
 
 ### 1. Agent Architecture:
