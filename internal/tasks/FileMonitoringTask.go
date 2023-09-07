@@ -1,9 +1,10 @@
-package internal
+package tasks
 
 import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"endpointSecurityAgent/internal"
 	"errors"
 	"io"
 	"io/fs"
@@ -14,14 +15,14 @@ import (
 	"time"
 )
 
-type FileMonitoringTask struct {
+type FileMonitoring struct {
 	// configuration
 	AllDirectories      bool     `yaml:"all_directories"`
 	SpecificDirectories []string `yaml:"specific_directories"`
 	ExcludedDirectories []string `yaml:"excluded_directories"`
 }
 
-func (t FileMonitoringTask) ExecuteTask() error {
+func (t FileMonitoring) ExecuteTask() error {
 	outputChan := make(chan []string)
 	errChan := make(chan error)
 
@@ -39,15 +40,15 @@ func (t FileMonitoringTask) ExecuteTask() error {
 	}
 }
 
-func (t FileMonitoringTask) GetNewTimer() time.Timer {
+func (t FileMonitoring) GetNewTimer() time.Timer {
 	return *time.NewTimer(time.Minute * 15)
 }
 
-func (t FileMonitoringTask) GetTaskName() string {
-	return "FileMonitoringTask"
+func (t FileMonitoring) GetTaskName() string {
+	return "FileMonitoring"
 }
 
-func (t FileMonitoringTask) getFilePathsFromRootDir(out chan []string, errChan chan error) {
+func (t FileMonitoring) getFilePathsFromRootDir(out chan []string, errChan chan error) {
 	var files = make([]string, 0)
 	err := filepath.Walk("/", func(path string, info fs.FileInfo, err error) error {
 		if errors.Is(err, fs.ErrPermission) {
@@ -83,7 +84,7 @@ func (t FileMonitoringTask) getFilePathsFromRootDir(out chan []string, errChan c
 	}
 }
 
-func (t FileMonitoringTask) ignoreDirectory(path string) bool {
+func (t FileMonitoring) ignoreDirectory(path string) bool {
 	for _, file := range t.ExcludedDirectories {
 		if strings.Contains(path, file) {
 			return true
@@ -110,7 +111,7 @@ func getFileHash(path string) (string, error) {
 }
 
 func batchStoreFileHash(files []string, errChan chan error) {
-	db := GetDatabase()
+	db := internal.GetDatabase()
 	defer db.Close()
 
 	res, err := insertFileHash(db, files)
