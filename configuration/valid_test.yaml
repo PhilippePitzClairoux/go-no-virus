@@ -1,0 +1,42 @@
+file_monitoring:
+  all_directories: true
+  included_directories:
+    - config
+    - conf
+  excluded_directories:
+    # used for memory management and processes - ignore for file monitoring - useless noise
+    - /proc
+    - /dev/shm
+    - /var/log
+    # trusted sources
+    - JetBrains
+    - Steam
+process_monitoring:
+  audit_all_processes: true
+  exclude_specific_processes:
+    # ignore web-browsers
+    - mozilla
+    - firefox
+    - googlechrome
+    - chromium
+    - edge
+    # trusted applications
+    - Steam
+    - JetBrains
+  sensitive_files:
+    # define paths, filenames that could contain potentially contain sensitive information
+    - /etc/passwd
+    - .ssh/
+    - .config/
+    - password
+    - credentials
+    - cred
+    - settings
+virus_monitoring:
+  all_directories: true
+  excluded_directories:
+    - /etc/brltty/Contraction
+    - Steam
+    - JetBrains
+file_delta_virus_detection:
+  activate: true
