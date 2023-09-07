@@ -62,7 +62,7 @@ func (t *VirusDetection) walkPath(startingPath string) error {
 			return filepath.SkipAll
 		}
 
-		//ignore files we dont have access to
+		//ignore files we don't have access to
 		if errors.Is(err, fs.ErrPermission) {
 			log.Printf("Skipping directory %s - access denied", path)
 			return filepath.SkipDir
