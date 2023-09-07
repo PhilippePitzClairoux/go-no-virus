@@ -20,9 +20,19 @@ type FileMonitoring struct {
 	AllDirectories      bool     `yaml:"all_directories"`
 	SpecificDirectories []string `yaml:"specific_directories"`
 	ExcludedDirectories []string `yaml:"excluded_directories"`
+	stopTask            bool
+	timer               *time.Timer
 }
 
-func (t FileMonitoring) ExecuteTask() error {
+func (t *FileMonitoring) StopTask() {
+	t.stopTask = true
+}
+
+func (t *FileMonitoring) IsStopped() bool {
+	return t.stopTask
+}
+
+func (t *FileMonitoring) ExecuteTask() error {
 	outputChan := make(chan []string)
 	errChan := make(chan error)
 
@@ -40,17 +50,22 @@ func (t FileMonitoring) ExecuteTask() error {
 	}
 }
 
-func (t FileMonitoring) GetNewTimer() time.Timer {
-	return *time.NewTimer(time.Minute * 15)
+func (t *FileMonitoring) GetDuration() time.Duration {
+	return 1 * time.Minute
 }
 
-func (t FileMonitoring) GetTaskName() string {
+func (t *FileMonitoring) GetTaskName() string {
 	return "FileMonitoring"
 }
 
-func (t FileMonitoring) getFilePathsFromRootDir(out chan []string, errChan chan error) {
+func (t *FileMonitoring) getFilePathsFromRootDir(out chan []string, errChan chan error) {
 	var files = make([]string, 0)
 	err := filepath.Walk("/", func(path string, info fs.FileInfo, err error) error {
+
+		if t.stopTask {
+			return filepath.SkipAll
+		}
+
 		if errors.Is(err, fs.ErrPermission) {
 			log.Printf("Skipping directory %s - access denied", path)
 			return filepath.SkipDir
@@ -84,7 +99,7 @@ func (t FileMonitoring) getFilePathsFromRootDir(out chan []string, errChan chan 
 	}
 }
 
-func (t FileMonitoring) ignoreDirectory(path string) bool {
+func (t *FileMonitoring) ignoreDirectory(path string) bool {
 	for _, file := range t.ExcludedDirectories {
 		if strings.Contains(path, file) {
 			return true

@@ -4,6 +4,8 @@ import "time"
 
 type Task interface {
 	ExecuteTask() error
-	GetNewTimer() time.Timer
+	GetDuration() time.Duration
 	GetTaskName() string
+	StopTask()
+	IsStopped() bool
 }

@@ -38,3 +38,5 @@ virus_monitoring:
     - /etc/brltty/Contraction
     - Steam
     - JetBrains
+file_delta_virus_detection:
+  activate: true

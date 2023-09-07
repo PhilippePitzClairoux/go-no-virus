@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
+	"time"
 )
 
 type ErrorEvent struct {
@@ -44,6 +46,7 @@ func (s *Scheduler) RegisterTask(task Task) error {
 func (s *Scheduler) StartTasks() {
 	signal.Notify(s.exitChan, os.Kill)
 	signal.Notify(s.exitChan, os.Interrupt)
+	var wg sync.WaitGroup
 
 	if len(s.taskRegistry) == 0 {
 		log.Println("no task scheduled. cannot start tasks")
@@ -51,19 +54,26 @@ func (s *Scheduler) StartTasks() {
 	}
 
 	for _, value := range s.taskRegistry {
-		go ScheduleTask(value, s.errChan, s.exitChan)
+		wg.Add(1)
+		go ScheduleTask(value, s.errChan, &wg)
 	}
 
-	waitForExit(s.errChan, s.exitChan)
+	s.waitForExit(s.errChan, s.exitChan, &wg)
 	log.Println("tasks completed!")
 }
 
-func waitForExit(errChan chan ErrorEvent, exitChan chan os.Signal) {
+func (s *Scheduler) waitForExit(errChan chan ErrorEvent, exitChan chan os.Signal, wg *sync.WaitGroup) {
 	for {
 		select {
 		case err := <-errChan:
 			logError(err)
 		case <-exitChan:
+			for _, job := range s.taskRegistry {
+				log.Printf("Requesting %s to stop!\n", job.GetTaskName())
+				job.StopTask()
+			}
+
+			wg.Wait()
 			return
 		}
 	}
@@ -81,24 +91,32 @@ func ExecuteTaskWrapper(task Task) error {
 		return err
 	}
 
-	// wait for timer to finish before restarting
-	log.Printf("%s finished successfully! Waiting for next execution...", task.GetTaskName())
-	<-task.GetNewTimer().C
-	return nil
-}
+	log.Printf("task finished : %s (exit requested : %t)\n", task.GetTaskName(), task.IsStopped())
 
-func ScheduleTask(task Task, errChan chan ErrorEvent, exitChan chan os.Signal) {
 	for {
 		select {
-		case <-exitChan:
-			log.Println("got exit signal - closing task")
-			return
+		case <-time.After(task.GetDuration()):
+			return nil
 		default:
-			err := ExecuteTaskWrapper(task)
-			if err != nil {
-				errChan <- ErrorEvent{err, task.GetTaskName()}
-				return
+			if task.IsStopped() {
+				return nil
 			}
+
+		}
+	}
+}
+
+func ScheduleTask(task Task, errChan chan ErrorEvent, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for {
+		err := ExecuteTaskWrapper(task)
+		if err != nil {
+			errChan <- ErrorEvent{err, task.GetTaskName()}
+			return
+		}
+
+		if task.IsStopped() {
+			return
 		}
 	}
 }

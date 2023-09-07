@@ -14,6 +14,8 @@ type ProcessMonitoring struct {
 	AuditAllProcesses        bool     `yaml:"audit_all_processes"`
 	ExcludeSpecificProcesses []string `yaml:"exclude_specific_processes"`
 	SensitiveFiles           []string `yaml:"sensitive_files"`
+	stopTask                 bool
+	timer                    *time.Timer
 }
 
 type aggregateProcessInfo struct {
@@ -36,6 +38,14 @@ reduce duplication
 */
 type aggregateProcessInfoField func(pmt *aggregateProcessInfo) (string, []string)
 
+func (t *ProcessMonitoring) StopTask() {
+	t.stopTask = true
+}
+
+func (t *ProcessMonitoring) IsStopped() bool {
+	return t.stopTask
+}
+
 // fileField returns suspiciousFiles from aggregateProcessInfo
 func fileField(api *aggregateProcessInfo) (string, []string) {
 	return "file", api.suspiciousFiles
@@ -47,7 +57,7 @@ func connectionField(api *aggregateProcessInfo) (string, []string) {
 }
 
 // ExecuteTask executes the ProcessMonitoring
-func (t ProcessMonitoring) ExecuteTask() error {
+func (t *ProcessMonitoring) ExecuteTask() error {
 
 	processes, err := getProcList()
 	if err != nil {
@@ -62,13 +72,12 @@ func (t ProcessMonitoring) ExecuteTask() error {
 	return nil
 }
 
-// GetNewTimer defines how long we should wait before running this again
-func (t ProcessMonitoring) GetNewTimer() time.Timer {
-	return *time.NewTimer(time.Minute * 2)
+func (t *ProcessMonitoring) GetDuration() time.Duration {
+	return 2 * time.Minute
 }
 
 // GetTaskName - return task name
-func (t ProcessMonitoring) GetTaskName() string {
+func (t *ProcessMonitoring) GetTaskName() string {
 	return "ProcessMonitoring"
 }
 
@@ -85,10 +94,15 @@ func getProcList() ([]*process.Process, error) {
 // auditProcesses function that goes through all the processes and audits them. Will mark process as suspicious
 // if there's outgoing connections and/or if the process is accessing sensitive files (path matches sensitive_files in configuration) .
 // processes that match exclude_specific_processes will be ignored.
-func (t ProcessMonitoring) auditProcesses(processes []*process.Process) error {
+func (t *ProcessMonitoring) auditProcesses(processes []*process.Process) error {
 	suspiciousProcesses := make(map[int32]*aggregateProcessInfo)
 
 	for _, proc := range processes {
+
+		if t.stopTask {
+			return nil
+		}
+
 		info := gatherProcessInformation(proc)
 
 		if t.ignoreProc(info.cmdline) {
@@ -115,7 +129,7 @@ func (t ProcessMonitoring) auditProcesses(processes []*process.Process) error {
 }
 
 // handleSuspiciousProcess will get parentProcess (if it exists) and store event into the database for later review
-func (t ProcessMonitoring) handleSuspiciousProcess(suspiciousProcess map[int32]*aggregateProcessInfo, getSuspicionAndData aggregateProcessInfoField) error {
+func (t *ProcessMonitoring) handleSuspiciousProcess(suspiciousProcess map[int32]*aggregateProcessInfo, getSuspicionAndData aggregateProcessInfoField) error {
 	for key, processInfo := range suspiciousProcess {
 		pid := key
 		parentProcess := getParentProcess(key)
@@ -134,7 +148,7 @@ func (t ProcessMonitoring) handleSuspiciousProcess(suspiciousProcess map[int32]*
 }
 
 // will add a suspiciousConnection to aggregateProcessInfo if it's status is not NONE and the IP isn't localhost
-func (t ProcessMonitoring) addSuspiciousConnections(processInfo *aggregateProcessInfo, suspiciousProcessConnections *map[int32]*aggregateProcessInfo, proc *process.Process) {
+func (t *ProcessMonitoring) addSuspiciousConnections(processInfo *aggregateProcessInfo, suspiciousProcessConnections *map[int32]*aggregateProcessInfo, proc *process.Process) {
 	for _, conn := range processInfo.connections {
 		if conn.Status != "NONE" && !isLocalhostIp.MatchString(conn.Raddr.IP) {
 			if _, ok := (*suspiciousProcessConnections)[proc.Pid]; !ok {
@@ -167,7 +181,7 @@ func getParentProcess(key int32) *process.Process {
 }
 
 // ignoreProc checks if the process is contained in ExcludeSpecificProcesses
-func (t ProcessMonitoring) ignoreProc(procName []string) bool {
+func (t *ProcessMonitoring) ignoreProc(procName []string) bool {
 	if len(procName) == 0 {
 		// if there's no proc name, it's probably a sub-process or a thread
 		return false
@@ -181,7 +195,7 @@ func (t ProcessMonitoring) ignoreProc(procName []string) bool {
 }
 
 // addSuspiciousFile will add an entry to aggregateProcessInfo if we consider the process suspicious
-func (t ProcessMonitoring) addSuspiciousFiles(procInfo *aggregateProcessInfo, m *map[int32]*aggregateProcessInfo, proc *process.Process) {
+func (t *ProcessMonitoring) addSuspiciousFiles(procInfo *aggregateProcessInfo, m *map[int32]*aggregateProcessInfo, proc *process.Process) {
 	if _, ok := (*m)[proc.Pid]; !ok {
 		(*m)[proc.Pid] = procInfo
 	}
@@ -195,7 +209,7 @@ func (t ProcessMonitoring) addSuspiciousFiles(procInfo *aggregateProcessInfo, m 
 }
 
 // suspiciousFile whether the filepath matches an entry in sensitive_files
-func (t ProcessMonitoring) suspiciousFile(path string) bool {
+func (t *ProcessMonitoring) suspiciousFile(path string) bool {
 	for _, file := range t.SensitiveFiles {
 		if strings.Contains(path, file) {
 			return true

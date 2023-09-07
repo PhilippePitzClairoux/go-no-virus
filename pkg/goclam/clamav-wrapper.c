@@ -4,6 +4,8 @@
 #include <clamav.h>
 #include "clamav-wrapper.h"
 
+
+
 struct cl_scan_options* get_default_options() {
 	struct cl_scan_options *options = (struct cl_scan_options *) malloc(sizeof(struct cl_scan_options));
 
@@ -19,36 +21,32 @@ struct cl_scan_options* get_default_options() {
 	return options;
 }
 
-struct cl_engine *create_cl_engine() {
+struct cl_engine *create_cl_engine(clamav_init_errors *err_raised) {
     unsigned int sigs;
     cl_error_t ret;
 
-    printf("clamav init...\n");
     if (cl_init(CL_INIT_DEFAULT) != CL_SUCCESS) {
-        printf("could not initialize clamav\n");
-        exit(1);
+        *err_raised = CLE_ERR_INIT;
+        return NULL;
     }
 
-    printf("creating clamav engine...\n");
     struct cl_engine *engine = cl_engine_new();
     if (engine == NULL) {
-        printf("could not create new engine\n");
-        exit(1);
+        *err_raised = CLE_ERR_ENGINE_CREATE;
+        return NULL;
     }
 
-    printf("loading clamav database...\n");
     ret = cl_load(cl_retdbdir(), engine, &sigs, CL_DB_STDOPT);
     if (ret != CL_SUCCESS) {
-        printf("could not initialize database\n");
         cl_engine_free(engine); // Remember to free the engine to avoid memory leaks.
-        exit(1);
+        *err_raised = CLE_ERR_DATABASE_LOAD;
+        return NULL;
     }
 
-    printf("Prepare clamav engine + database...\n");
     if (cl_engine_compile(engine) != CL_SUCCESS) {
-        printf("could not initialize database\n");
         cl_engine_free(engine); // Remember to free the engine to avoid memory leaks.
-        exit(1);
+        *err_raised = CLE_ERR_COMPILE;
+        return NULL;
     }
 
 
