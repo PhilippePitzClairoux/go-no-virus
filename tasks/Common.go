@@ -11,6 +11,6 @@ func virusDetected(report goclam.ClEngineFileReport) error {
 	db := internal.GetDatabase()
 	defer db.Close()
 
-	_, err := db.Exec("INSERT OR IGNORE INTO virus_detected(path, cause) VALUES (?, ?)", report.Path, report.ClEngineFlagRaised)
+	_, err := db.Exec("INSERT IGNORE INTO virus_detected(path, cause) VALUES (?, ?)", report.Path, report.ClEngineFlagRaised)
 	return err
 }

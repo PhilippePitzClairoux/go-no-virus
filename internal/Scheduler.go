@@ -8,4 +8,5 @@ type Task interface {
 	GetTaskName() string
 	StopTask()
 	IsStopped() bool
+	StopChan() chan interface{}
 }

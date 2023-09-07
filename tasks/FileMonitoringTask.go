@@ -21,6 +21,15 @@ type FileMonitoring struct {
 	SpecificDirectories []string `yaml:"specific_directories"`
 	ExcludedDirectories []string `yaml:"excluded_directories"`
 	stopTask            bool
+	stopChan            chan interface{}
+}
+
+func (t *FileMonitoring) StopChan() chan interface{} {
+	if t.stopChan == nil {
+		t.stopChan = make(chan interface{})
+	}
+
+	return t.stopChan
 }
 
 func (t *FileMonitoring) StopTask() {
@@ -148,7 +157,7 @@ func batchStoreFileHash(files []string, errChan chan error) {
 }
 
 func insertFileHash(db *sql.DB, files []string) (sql.Result, error) {
-	query := `INSERT OR IGNORE INTO file_monitoring (path, hash) VALUES `
+	query := `INSERT IGNORE INTO file_monitoring (path, hash) VALUES `
 	var values []interface{}
 
 	for _, file := range files {

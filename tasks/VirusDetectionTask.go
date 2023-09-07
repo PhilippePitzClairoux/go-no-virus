@@ -15,6 +15,15 @@ type VirusDetection struct {
 	SpecificDirectories []string `yaml:"specific_directories"`
 	ExcludedDirectories []string `yaml:"excluded_directories"`
 	stopTask            bool
+	stopChan            chan interface{}
+}
+
+func (t *VirusDetection) StopChan() chan interface{} {
+	if t.stopChan == nil {
+		t.stopChan = make(chan interface{})
+	}
+
+	return t.stopChan
 }
 
 func (t *VirusDetection) StopTask() {

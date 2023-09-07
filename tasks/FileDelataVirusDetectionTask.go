@@ -13,6 +13,15 @@ import (
 type FileDeltaVirusDetection struct {
 	Activate bool `yaml:"activate"`
 	stopTask bool
+	stopChan chan interface{}
+}
+
+func (t *FileDeltaVirusDetection) StopChan() chan interface{} {
+	if t.stopChan == nil {
+		t.stopChan = make(chan interface{})
+	}
+
+	return t.stopChan
 }
 
 func (t *FileDeltaVirusDetection) StopTask() {

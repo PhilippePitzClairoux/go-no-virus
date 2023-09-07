@@ -95,13 +95,9 @@ func ExecuteTaskWrapper(task Task) error {
 
 	for {
 		select {
+		case <-task.StopChan():
 		case <-time.After(task.GetDuration()):
 			return nil
-		default:
-			if task.IsStopped() {
-				return nil
-			}
-
 		}
 	}
 }
@@ -116,6 +112,7 @@ func ScheduleTask(task Task, errChan chan ErrorEvent, wg *sync.WaitGroup) {
 		}
 
 		if task.IsStopped() {
+			task.StopChan() <- struct{}{}
 			return
 		}
 	}

@@ -15,6 +15,7 @@ type ProcessMonitoring struct {
 	ExcludeSpecificProcesses []string `yaml:"exclude_specific_processes"`
 	SensitiveFiles           []string `yaml:"sensitive_files"`
 	stopTask                 bool
+	stopChan                 chan interface{}
 }
 
 type aggregateProcessInfo struct {
@@ -36,6 +37,14 @@ Define function to get aggregateProcessInfo field (suspicion and data) to make s
 reduce duplication
 */
 type aggregateProcessInfoField func(pmt *aggregateProcessInfo) (string, []string)
+
+func (t *ProcessMonitoring) StopChan() chan interface{} {
+	if t.stopChan == nil {
+		t.stopChan = make(chan interface{})
+	}
+
+	return t.stopChan
+}
 
 func (t *ProcessMonitoring) StopTask() {
 	t.stopTask = true
