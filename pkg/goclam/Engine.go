@@ -12,7 +12,7 @@ package goclam
 import "C"
 
 import (
-	"log"
+	"errors"
 	"unsafe"
 )
 
@@ -35,13 +35,29 @@ type ClEngineFileReport struct {
 	ClEngineError      string
 }
 
-func init() {
+func InitClEngine() error {
+	var errorRaised C.clamav_init_errors
+	var err error
+
 	GlobalEngine = ClEngine{
-		instance:           C.create_cl_engine(),
+		instance:           C.create_cl_engine(&errorRaised),
 		defaultScanOptions: C.get_default_options(),
 	}
 
-	log.Println("Done setting up clamav!")
+	switch errorRaised {
+	case C.CLE_ERR_INIT:
+		err = errors.New("could not initialize clamav library")
+	case C.CLE_ERR_ENGINE_CREATE:
+		err = errors.New("could not create instance of clamav scan engine")
+	case C.CLE_ERR_DATABASE_LOAD:
+		err = errors.New("could not load clamav database")
+	case C.CLE_ERR_COMPILE:
+		err = errors.New("could not compile clamav with its database")
+	default:
+		err = nil
+	}
+
+	return err
 }
 
 func GetClEngineInstance() ClEngine {
@@ -84,7 +100,7 @@ func (cle *ClEngine) ScanFile(filePath string) ClEngineFileReport {
 		uint64(scanned),
 		err == C.CL_VIRUS,
 		C.GoString(virusName),
-		C.GoString(C.cl_strerror((C.int)(err))),
+		C.GoString(C.cl_strerror(err)),
 	}
 
 }
