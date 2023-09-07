@@ -13,7 +13,6 @@ import (
 type FileDeltaVirusDetection struct {
 	Activate bool `yaml:"activate"`
 	stopTask bool
-	timer    *time.Timer
 }
 
 func (t *FileDeltaVirusDetection) StopTask() {

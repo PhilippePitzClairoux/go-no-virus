@@ -16,7 +16,6 @@ type VirusDetection struct {
 	ExcludedDirectories  []string `yaml:"excluded_directories"`
 	initialScanCompleted bool
 	stopTask             bool
-	timer                *time.Timer
 }
 
 func (t *VirusDetection) StopTask() {
