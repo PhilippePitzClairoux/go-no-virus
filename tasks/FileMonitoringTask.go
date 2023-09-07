@@ -21,7 +21,6 @@ type FileMonitoring struct {
 	SpecificDirectories []string `yaml:"specific_directories"`
 	ExcludedDirectories []string `yaml:"excluded_directories"`
 	stopTask            bool
-	timer               *time.Timer
 }
 
 func (t *FileMonitoring) StopTask() {

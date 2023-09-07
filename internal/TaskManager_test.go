@@ -11,9 +11,9 @@ func TestRegisterTask(t *testing.T) {
 	exitChan := make(chan os.Signal)
 	scheduler := NewScheduler(errChan, exitChan)
 	tasks := []Task{
-		testTask{"test1"},
-		testTask{"test2"},
-		testTask{"test3"},
+		&testTask{"test1", false},
+		&testTask{"test2", false},
+		&testTask{"test3", false},
 	}
 
 	for _, task := range tasks {
@@ -33,9 +33,9 @@ func TestStartTasks(t *testing.T) {
 	done := make(chan bool)
 	scheduler := NewScheduler(errChan, exitChan)
 	tasks := []Task{
-		testTask{"test1"},
-		testTask{"test2"},
-		testTask{"test3"},
+		&testTask{"test1", false},
+		&testTask{"test2", false},
+		&testTask{"test3", false},
 	}
 
 	for _, task := range tasks {
@@ -70,7 +70,7 @@ func TestSchedulingInterval(t *testing.T) {
 	var counter = NewWriterWithCounter()
 
 	scheduler := NewSchedulerWithCustomWriter(errChan, exitChan, counter)
-	tt := []Task{testTask{"test1"}}
+	tt := []Task{&testTask{"test1", false}}
 
 	err := scheduler.RegisterTask(tt[0])
 	if err != nil {

@@ -11,12 +11,10 @@ import (
 )
 
 type VirusDetection struct {
-	AllDirectories       bool     `yaml:"all_directories"`
-	SpecificDirectories  []string `yaml:"specific_directories"`
-	ExcludedDirectories  []string `yaml:"excluded_directories"`
-	initialScanCompleted bool
-	stopTask             bool
-	timer                *time.Timer
+	AllDirectories      bool     `yaml:"all_directories"`
+	SpecificDirectories []string `yaml:"specific_directories"`
+	ExcludedDirectories []string `yaml:"excluded_directories"`
+	stopTask            bool
 }
 
 func (t *VirusDetection) StopTask() {
@@ -37,36 +35,34 @@ func (t *VirusDetection) ExecuteTask() error {
 }
 
 func (t *VirusDetection) initialScan() error {
-	var err error = nil
-
-	if t.initialScanCompleted {
-		return err
-	}
 
 	if t.AllDirectories {
-		t.walkPath("/")
+		return t.walkPath("/")
 	} else {
-		t.walkPaths(t.SpecificDirectories)
+		return t.walkPaths(t.SpecificDirectories)
 	}
 
-	t.initialScanCompleted = true
+}
+
+func (t *VirusDetection) walkPaths(paths []string) error {
+	for _, path := range paths {
+		err := t.walkPath(path)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func (t *VirusDetection) walkPaths(paths []string) {
-	for _, path := range paths {
-		t.walkPath(path)
-	}
-}
-
-func (t *VirusDetection) walkPath(startingPath string) {
+func (t *VirusDetection) walkPath(startingPath string) error {
 	err := filepath.Walk(startingPath, func(path string, info fs.FileInfo, err error) error {
 
 		if t.stopTask {
 			return filepath.SkipAll
 		}
 
-		//ignore files we dont have access to
+		//ignore files we don't have access to
 		if errors.Is(err, fs.ErrPermission) {
 			log.Printf("Skipping directory %s - access denied", path)
 			return filepath.SkipDir
@@ -91,11 +87,11 @@ func (t *VirusDetection) walkPath(startingPath string) {
 		return nil
 	})
 
-	log.Println("there was an error during the initial scan : ", err)
+	return err
 }
 
 func (t *VirusDetection) GetDuration() time.Duration {
-	return 15 * time.Minute
+	return 60 * time.Minute
 }
 
 func (t *VirusDetection) GetTaskName() string {

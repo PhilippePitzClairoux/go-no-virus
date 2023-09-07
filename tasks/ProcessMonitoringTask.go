@@ -15,7 +15,6 @@ type ProcessMonitoring struct {
 	ExcludeSpecificProcesses []string `yaml:"exclude_specific_processes"`
 	SensitiveFiles           []string `yaml:"sensitive_files"`
 	stopTask                 bool
-	timer                    *time.Timer
 }
 
 type aggregateProcessInfo struct {
