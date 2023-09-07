@@ -23,6 +23,15 @@ process_monitoring:
     # trusted applications
     - Steam
     - JetBrains
+  sensitive_files:
+    # define paths, filenames that could contain potentially contain sensitive information
+    - /etc/passwd
+    - .ssh/
+    - .config/
+    - password
+    - credentials
+    - cred
+    - settings
 virus_monitoring:
   all_directories: true
   excluded_directories:

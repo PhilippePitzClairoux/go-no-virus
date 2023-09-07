@@ -1,6 +1,7 @@
-package internal
+package tasks
 
 import (
+	"endpointSecurityAgent/internal"
 	"endpointSecurityAgent/pkg/goclam"
 	"errors"
 	"io/fs"
@@ -10,14 +11,14 @@ import (
 	"time"
 )
 
-type VirusDetectionTask struct {
+type VirusDetection struct {
 	AllDirectories       bool     `yaml:"all_directories"`
 	SpecificDirectories  []string `yaml:"specific_directories"`
 	ExcludedDirectories  []string `yaml:"excluded_directories"`
 	initialScanCompleted bool
 }
 
-func (t VirusDetectionTask) ExecuteTask() error {
+func (t VirusDetection) ExecuteTask() error {
 	err := t.initialScan()
 	if err != nil {
 		return err
@@ -31,7 +32,7 @@ func (t VirusDetectionTask) ExecuteTask() error {
 	return t.handleFilesDelta(files)
 }
 
-func (t VirusDetectionTask) initialScan() error {
+func (t VirusDetection) initialScan() error {
 	var err error = nil
 
 	if t.initialScanCompleted {
@@ -48,13 +49,13 @@ func (t VirusDetectionTask) initialScan() error {
 	return nil
 }
 
-func (t VirusDetectionTask) walkPaths(paths []string) {
+func (t VirusDetection) walkPaths(paths []string) {
 	for _, path := range paths {
 		t.walkPath(path)
 	}
 }
 
-func (t VirusDetectionTask) walkPath(startingPath string) {
+func (t VirusDetection) walkPath(startingPath string) {
 	err := filepath.Walk(startingPath, func(path string, info fs.FileInfo, err error) error {
 		//ignore files we dont have access to
 		if errors.Is(err, fs.ErrPermission) {
@@ -84,15 +85,15 @@ func (t VirusDetectionTask) walkPath(startingPath string) {
 	log.Println("there was an error during the initial scan : ", err)
 }
 
-func (t VirusDetectionTask) GetNewTimer() time.Timer {
+func (t VirusDetection) GetNewTimer() time.Timer {
 	return *time.NewTimer(time.Minute * 15)
 }
 
-func (t VirusDetectionTask) GetTaskName() string {
-	return "VirusDetectionTask"
+func (t VirusDetection) GetTaskName() string {
+	return "VirusDetection"
 }
 
-func (t VirusDetectionTask) ignoreDirectory(path string) bool {
+func (t VirusDetection) ignoreDirectory(path string) bool {
 	for _, file := range t.ExcludedDirectories {
 		if strings.Contains(path, file) {
 			return true
@@ -102,8 +103,10 @@ func (t VirusDetectionTask) ignoreDirectory(path string) bool {
 	return false
 }
 
-func (t VirusDetectionTask) getFilesDelta() ([]string, error) {
-	db := GetDatabase()
+func (t VirusDetection) getFilesDelta() ([]string, error) {
+	db := internal.GetDatabase()
+	defer db.Close()
+
 	var results []string
 	var path string
 
@@ -124,7 +127,7 @@ func (t VirusDetectionTask) getFilesDelta() ([]string, error) {
 	return results, nil
 }
 
-func (t VirusDetectionTask) handleFilesDelta(files []string) error {
+func (t VirusDetection) handleFilesDelta(files []string) error {
 
 	for _, file := range files {
 		engine := goclam.GetClEngineInstance()
@@ -146,8 +149,10 @@ func (t VirusDetectionTask) handleFilesDelta(files []string) error {
 	return nil
 }
 
-func (t VirusDetectionTask) updateFileStatus(file string) error {
-	db := GetDatabase()
+func (t VirusDetection) updateFileStatus(file string) error {
+	db := internal.GetDatabase()
+	defer db.Close()
+
 	_, err := db.Exec("UPDATE file_monitoring_conflicts ON checked = true WHERE path = ?", file)
 	if err != nil {
 		return err
@@ -155,9 +160,11 @@ func (t VirusDetectionTask) updateFileStatus(file string) error {
 	return nil
 }
 
-func (t VirusDetectionTask) virusDetected(report goclam.ClEngineFileReport) error {
+func (t VirusDetection) virusDetected(report goclam.ClEngineFileReport) error {
 	log.Printf("%s %s %s (%d bytes)\n", report.Path, report.ClEngineFlagRaised, report.ClEngineError, report.BytesScanned)
-	db := GetDatabase()
+	db := internal.GetDatabase()
+	defer db.Close()
+
 	_, err := db.Exec("INSERT OR IGNORE INTO virus_detected(path, cause) VALUES (?, ?)", report.Path, report.ClEngineFlagRaised)
 	return err
 }

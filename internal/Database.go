@@ -11,8 +11,8 @@ import (
 func init() {
 	log.Println("connecting/creating database...")
 	db := GetDatabase()
-
 	defer db.Close()
+
 	_, err := db.Exec(`
 	PRAGMA journal_mode=WAL; -- write-Ahead Logging Mode
 	PRAGMA busy_timeout = 20000; -- set timeout to 10 seconds
@@ -34,8 +34,9 @@ func init() {
 	CREATE TABLE IF NOT EXISTS suspicious_process (
 	  inserted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 	  pid INT NOT NULL,
-	  cmd_line VARCHAR,
-	  suspicious_connection VARCHAR
+	  cmd_line TEXT,
+	  suspicion_type TEXT CHECK( suspicion_type IN ('network', 'file')),
+	  data TEXT
 	);
 
 	CREATE TABLE IF NOT EXISTS virus_detected (
@@ -43,7 +44,7 @@ func init() {
 	    path VARCHAR(2048) NOT NULL,
 	    cause VARCHAR(255) NOT NULL,
 	    PRIMARY KEY (path, cause)
-	)
+	);
 `)
 	if err != nil {
 		log.Fatalf("Could not create table - %s\n", err)
