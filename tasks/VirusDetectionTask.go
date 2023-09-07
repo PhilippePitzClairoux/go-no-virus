@@ -95,7 +95,7 @@ func (t *VirusDetection) GetDuration() time.Duration {
 }
 
 func (t *VirusDetection) GetTaskName() string {
-	return "VirusDetectionCron"
+	return "VirusDetection"
 }
 
 func (t *VirusDetection) ignoreDirectory(path string) bool {

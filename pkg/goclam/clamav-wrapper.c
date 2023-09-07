@@ -9,14 +9,9 @@
 struct cl_scan_options* get_default_options() {
 	struct cl_scan_options *options = (struct cl_scan_options *) malloc(sizeof(struct cl_scan_options));
 
-	options->general = CL_SCAN_GENERAL_ALLMATCHES | CL_SCAN_GENERAL_COLLECT_METADATA | CL_SCAN_GENERAL_HEURISTICS;
-
-	options->parse = CL_SCAN_PARSE_ARCHIVE | CL_SCAN_PARSE_ELF | CL_SCAN_PARSE_PDF | CL_SCAN_PARSE_SWF | CL_SCAN_PARSE_HWP3
-	| CL_SCAN_PARSE_XMLDOCS | CL_SCAN_PARSE_MAIL | CL_SCAN_PARSE_HTML | CL_SCAN_PARSE_PE | CL_SCAN_PARSE_OLE2;
-
-	options->heuristic = CL_SCAN_HEURISTIC_BROKEN | CL_SCAN_HEURISTIC_PHISHING_SSL_MISMATCH
-	| CL_SCAN_HEURISTIC_PHISHING_CLOAK | CL_SCAN_HEURISTIC_MACROS | CL_SCAN_HEURISTIC_ENCRYPTED_ARCHIVE | CL_SCAN_HEURISTIC_ENCRYPTED_DOC |
-	 CL_SCAN_HEURISTIC_PARTITION_INTXN | CL_SCAN_HEURISTIC_STRUCTURED | CL_SCAN_HEURISTIC_STRUCTURED_CC | CL_SCAN_HEURISTIC_BROKEN_MEDIA;
+	options->general = CL_SCAN_GENERAL_ALLMATCHES;
+	options->parse = ~0;
+	options->heuristic = 0;
 
 	return options;
 }
@@ -36,7 +31,7 @@ struct cl_engine *create_cl_engine(clamav_init_errors *err_raised) {
         return NULL;
     }
 
-    ret = cl_load(cl_retdbdir(), engine, &sigs, CL_DB_STDOPT);
+    ret = cl_load(cl_retdbdir(), engine, &sigs, CL_DB_BYTECODE | CL_DB_PUA );
     if (ret != CL_SUCCESS) {
         cl_engine_free(engine); // Remember to free the engine to avoid memory leaks.
         *err_raised = CLE_ERR_DATABASE_LOAD;
@@ -48,7 +43,6 @@ struct cl_engine *create_cl_engine(clamav_init_errors *err_raised) {
         *err_raised = CLE_ERR_COMPILE;
         return NULL;
     }
-
 
     return engine;
 }

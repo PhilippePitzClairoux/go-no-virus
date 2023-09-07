@@ -92,7 +92,10 @@ func (cle *ClEngine) ScanFile(filePath string) ClEngineFileReport {
 	var scanned C.ulong = 0
 
 	cFilePath := C.CString(filePath)
+
 	defer C.free(unsafe.Pointer(cFilePath))
+	defer C.free(unsafe.Pointer(virusName))
+
 	err := C.cl_scanfile(cFilePath, &virusName, &scanned, cle.instance, cle.defaultScanOptions)
 
 	return ClEngineFileReport{

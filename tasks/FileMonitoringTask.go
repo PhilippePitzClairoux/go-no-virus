@@ -70,6 +70,10 @@ func (t *FileMonitoring) getFilePathsFromRootDir(out chan []string, errChan chan
 			return filepath.SkipDir
 		}
 
+		if info == nil {
+			log.Println("info is nil in file monitoring task....", path)
+		}
+
 		if info.IsDir() && t.ignoreDirectory(path) {
 			log.Printf("%s matches an ignore directory path - excluding indexing\n", path)
 			return filepath.SkipDir
@@ -150,7 +154,7 @@ func insertFileHash(db *sql.DB, files []string) (sql.Result, error) {
 	for _, file := range files {
 		hash, err := getFileHash(file)
 		if err != nil {
-			if os.IsNotExist(err) {
+			if os.IsNotExist(err) || os.IsPermission(err) {
 				continue
 			} else {
 				return nil, err
