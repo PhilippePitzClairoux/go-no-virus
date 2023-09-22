@@ -13,12 +13,13 @@ func main() {
 	if err != nil {
 		log.Fatal("Could not start clamav : ", err)
 	}
+
 	defer go_clam.CloseClEngine()
 
 	errChan := make(chan internal.ErrorEvent)
 	exitChan := make(chan os.Signal)
 	scheduler := internal.NewScheduler(errChan, exitChan)
-	conf, err := configuration.LoadApplicationConfiguration("./default.yaml")
+	conf, err := configuration.LoadApplicationConfiguration("./default.yaml.local")
 
 	// register file monitoring
 	if conf.FileMonitoring.AllDirectories {
@@ -50,5 +51,6 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+
 	scheduler.StartTasks()
 }

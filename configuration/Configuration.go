@@ -1,6 +1,7 @@
 package configuration
 
 import (
+	"endpointSecurityAgent/internal"
 	taskinstances "endpointSecurityAgent/tasks"
 	"gopkg.in/yaml.v2"
 	"io"
@@ -8,10 +9,11 @@ import (
 )
 
 type ApplicationConfiguration struct {
-	FileMonitoring         *taskinstances.FileMonitoring          `yaml:"file_monitoring"`
-	ProcessMonitoring      *taskinstances.ProcessMonitoring       `yaml:"process_monitoring"`
-	BackDoorMonitoring     *taskinstances.VirusDetection          `yaml:"virus_monitoring"`
-	FileDeltaVirusScanning *taskinstances.FileDeltaVirusDetection `yaml:"file_delta_virus_detection"`
+	FileMonitoring         *taskinstances.FileMonitoring           `yaml:"file_monitoring"`
+	ProcessMonitoring      *taskinstances.ProcessMonitoring        `yaml:"process_monitoring"`
+	BackDoorMonitoring     *taskinstances.FullSystemVirusDetection `yaml:"virus_monitoring"`
+	FileDeltaVirusScanning *taskinstances.FileDeltaVirusDetection  `yaml:"file_delta_virus_detection"`
+	EmailNotifier          *internal.EmailNotifier                 `yaml:"email_notifier"`
 }
 
 func LoadApplicationConfiguration(location string) (ApplicationConfiguration, error) {

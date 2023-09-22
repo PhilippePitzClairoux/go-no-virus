@@ -11,6 +11,10 @@ type testTask struct {
 	stopTask bool
 }
 
+func (tt *testTask) StopChan() chan interface{} {
+	return nil
+}
+
 // always false
 func (tt *testTask) IsStopped() bool {
 	return tt.stopTask

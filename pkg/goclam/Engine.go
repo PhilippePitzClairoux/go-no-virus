@@ -13,6 +13,7 @@ import "C"
 
 import (
 	"errors"
+	"sync"
 	"unsafe"
 )
 
@@ -21,6 +22,7 @@ type clScanOptionsPtr *C.struct_cl_scan_options
 type ClEngineProperty int
 
 var GlobalEngine ClEngine
+var engineWG sync.WaitGroup
 
 type ClEngine struct {
 	instance           clEnginePtr
@@ -61,7 +63,13 @@ func InitClEngine() error {
 }
 
 func GetClEngineInstance() ClEngine {
+	engineWG.Wait()
+	engineWG.Add(1)
 	return GlobalEngine
+}
+
+func ReleaseClEngineInstance() {
+	engineWG.Done()
 }
 
 func CloseClEngine() {
@@ -87,7 +95,10 @@ func (cle *ClEngine) setHeuristicOptions(value uint32) {
 	(*cle.defaultScanOptions).heuristic = C.uint(value)
 }
 
-func (cle *ClEngine) ScanFile(filePath string) ClEngineFileReport {
+func ScanFile(filePath string) ClEngineFileReport {
+	cle := GetClEngineInstance()
+	defer ReleaseClEngineInstance()
+
 	var virusName *C.char
 	var scanned C.ulong = 0
 

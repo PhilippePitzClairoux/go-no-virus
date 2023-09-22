@@ -40,3 +40,9 @@ virus_monitoring:
     - JetBrains
 file_delta_virus_detection:
   activate: true
+email_notifier:
+  from_email_address: ""
+  password: ""
+  auth_url: ""
+  auth_url_port: ""
+  to_email_address: ""

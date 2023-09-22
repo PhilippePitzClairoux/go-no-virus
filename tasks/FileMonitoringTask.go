@@ -33,6 +33,7 @@ func (t *FileMonitoring) StopChan() chan interface{} {
 }
 
 func (t *FileMonitoring) StopTask() {
+	log.Println("STOP HAS BEEN CALLED FOR " + t.GetTaskName())
 	t.stopTask = true
 }
 
@@ -52,14 +53,12 @@ func (t *FileMonitoring) ExecuteTask() error {
 			return err
 		case files := <-outputChan:
 			go batchStoreFileHash(files, errChan)
-		case <-time.After(4 * time.Second):
-			return nil
 		}
 	}
 }
 
 func (t *FileMonitoring) GetDuration() time.Duration {
-	return 1 * time.Minute
+	return 5 * time.Minute
 }
 
 func (t *FileMonitoring) GetTaskName() string {
@@ -68,6 +67,7 @@ func (t *FileMonitoring) GetTaskName() string {
 
 func (t *FileMonitoring) getFilePathsFromRootDir(out chan []string, errChan chan error) {
 	var files = make([]string, 0)
+
 	err := filepath.Walk("/", func(path string, info fs.FileInfo, err error) error {
 
 		if t.stopTask {
@@ -75,12 +75,12 @@ func (t *FileMonitoring) getFilePathsFromRootDir(out chan []string, errChan chan
 		}
 
 		if errors.Is(err, fs.ErrPermission) {
-			log.Printf("Skipping directory %s - access denied", path)
-			return filepath.SkipDir
-		}
+			if info != nil && info.IsDir() {
+				log.Printf("Skipping directory %s - access denied", path)
+				return filepath.SkipDir
+			}
 
-		if info == nil {
-			log.Println("info is nil in file monitoring task....", path)
+			return nil
 		}
 
 		if info.IsDir() && t.ignoreDirectory(path) {
@@ -100,7 +100,7 @@ func (t *FileMonitoring) getFilePathsFromRootDir(out chan []string, errChan chan
 		return nil
 	})
 
-	if err != nil {
+	if err != nil || t.stopTask {
 		errChan <- err
 		return
 	}
@@ -109,6 +109,8 @@ func (t *FileMonitoring) getFilePathsFromRootDir(out chan []string, errChan chan
 	if len(files) > 0 {
 		out <- files
 	}
+
+	errChan <- nil
 }
 
 func (t *FileMonitoring) ignoreDirectory(path string) bool {
@@ -138,17 +140,14 @@ func getFileHash(path string) (string, error) {
 }
 
 func batchStoreFileHash(files []string, errChan chan error) {
-	db := internal.GetDatabase()
-	defer db.Close()
-
-	res, err := insertFileHash(db, files)
+	res, err := insertFileHash(files)
 	if err != nil {
 		errChan <- err
 		return
 	}
 
 	if rows, _ := res.RowsAffected(); rows > 0 {
-		err = searchConflict(db)
+		err = searchConflict()
 		if err != nil {
 			errChan <- err
 			return
@@ -156,7 +155,7 @@ func batchStoreFileHash(files []string, errChan chan error) {
 	}
 }
 
-func insertFileHash(db *sql.DB, files []string) (sql.Result, error) {
+func insertFileHash(files []string) (sql.Result, error) {
 	query := `INSERT IGNORE INTO file_monitoring (path, hash) VALUES `
 	var values []interface{}
 
@@ -176,35 +175,33 @@ func insertFileHash(db *sql.DB, files []string) (sql.Result, error) {
 
 	// remove extra ,
 	query = strings.TrimSuffix(query, ",")
-	stmt, err := db.Prepare(query)
-	if err != nil {
-		return nil, err
-	}
 
-	defer stmt.Close()
-	return stmt.Exec(values...)
+	return internal.ExecuteQuery(internal.QueryHolder{
+		Query: query,
+		Args:  values,
+	})
 }
 
-func searchConflict(db *sql.DB) error {
-	query := `SELECT a.path, a.hash, b.hash
+func searchConflict() error {
+	res, err := internal.SelectData(internal.QueryHolder{
+		Query: `SELECT a.path, a.hash, b.hash
 					FROM file_monitoring a
 					JOIN file_monitoring b
-					ON a.path = b.path AND a.hash != b.hash;`
-	rows, err := db.Query(query)
+					ON a.path = b.path AND a.hash != b.hash;`,
+		RowCount: 3,
+	})
+
 	if err != nil {
 		return err
 	}
 
-	defer rows.Close()
-	for rows.Next() {
-		var path, newHash, oldHash string
-		err := rows.Scan(&path, &newHash, &oldHash)
-		if err != nil {
-			return err
-		}
+	for _, row := range res {
+		path := row[0]
+		newHash := row[1]
+		oldHash := row[2]
 
 		if path != "" || newHash != "" || oldHash != "" {
-			err = insertConflict(db, path, newHash, oldHash)
+			err = insertConflict(path, newHash, oldHash)
 			if err != nil {
 				return err
 			}
@@ -214,9 +211,11 @@ func searchConflict(db *sql.DB) error {
 	return nil
 }
 
-func insertConflict(db *sql.DB, path, newHash, oldHash string) error {
-	query := `INSERT INTO file_monitoring_conflicts(path, new_hash, old_hash) VALUES (?, ?, ?)`
-	_, err := db.Exec(query, path, newHash, oldHash)
+func insertConflict(path, newHash, oldHash string) error {
+	_, err := internal.ExecuteQuery(internal.QueryHolder{
+		Query: `INSERT INTO file_monitoring_conflicts(path, new_hash, old_hash) VALUES (?, ?, ?)`,
+		Args:  []interface{}{path, newHash, oldHash},
+	})
 
 	return err
 }

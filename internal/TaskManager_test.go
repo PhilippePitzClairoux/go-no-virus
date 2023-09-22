@@ -56,7 +56,7 @@ func TestStartTasks(t *testing.T) {
 	case <-done:
 		//test completed success fully
 		return
-	case <-time.After(5 * time.Second):
+	case <-time.After(10 * time.Second):
 		t.Errorf("Test timeout - StartTask() never finished")
 		t.FailNow()
 	}

@@ -13,7 +13,7 @@ type ProcessMonitoring struct {
 	// configuration
 	AuditAllProcesses        bool     `yaml:"audit_all_processes"`
 	ExcludeSpecificProcesses []string `yaml:"exclude_specific_processes"`
-	SensitiveFiles           []string `yaml:"sensitive_files"`
+	SensitiveFiles           []string `yaml:"sensitive_files"` // monitor processes accessing these files (can be a patern - not just a path e.g: .password)
 	stopTask                 bool
 	stopChan                 chan interface{}
 }
@@ -139,6 +139,10 @@ func (t *ProcessMonitoring) auditProcesses(processes []*process.Process) error {
 // handleSuspiciousProcess will get parentProcess (if it exists) and store event into the database for later review
 func (t *ProcessMonitoring) handleSuspiciousProcess(suspiciousProcess map[int32]*aggregateProcessInfo, getSuspicionAndData aggregateProcessInfoField) error {
 	for key, processInfo := range suspiciousProcess {
+		if t.stopTask {
+			return nil
+		}
+
 		pid := key
 		parentProcess := getParentProcess(key)
 
@@ -257,9 +261,6 @@ func storeSuspiciousProcess(pid int32, info *aggregateProcessInfo, suspicionType
 		return nil
 	}
 
-	db := internal.GetDatabase()
-	defer db.Close()
-
 	query := `INSERT INTO suspicious_process (pid, cmd_line, suspicion_type, data) VALUES `
 	var values []interface{}
 
@@ -269,14 +270,10 @@ func storeSuspiciousProcess(pid int32, info *aggregateProcessInfo, suspicionType
 	}
 
 	// remove extra ,
-	query = strings.TrimSuffix(query, ",")
-	stmt, err := db.Prepare(query)
-	if err != nil {
-		return err
-	}
-
-	defer stmt.Close()
-	_, err = stmt.Exec(values...)
+	_, err := internal.ExecuteQuery(internal.QueryHolder{
+		Query: query,
+		Args:  values,
+	})
 	return err
 
 }

@@ -3,3 +3,4 @@ overwatch.db
 overwatch.db-shm
 overwatch.db-wal
 endpointSecurityAgent
+default.yaml.local

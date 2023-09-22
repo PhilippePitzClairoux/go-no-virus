@@ -1,6 +1,9 @@
 SET GLOBAL innodb_file_per_table = on;
 SET GLOBAL innodb_default_row_format = dynamic;
 DROP TABLE IF EXISTS file_monitoring;
+CREATE DATABASE IF NOT EXISTS overwatch;
+USER overwatch;
+
 CREATE TABLE file_monitoring (
                                  path VARCHAR(2048) NOT NULL,
                                  hash VARCHAR(255) NOT NULL,

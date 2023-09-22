@@ -1,7 +1,6 @@
 package tasks
 
 import (
-	"endpointSecurityAgent/pkg/goclam"
 	"errors"
 	"io/fs"
 	"log"
@@ -10,7 +9,7 @@ import (
 	"time"
 )
 
-type VirusDetection struct {
+type FullSystemVirusDetection struct {
 	AllDirectories      bool     `yaml:"all_directories"`
 	SpecificDirectories []string `yaml:"specific_directories"`
 	ExcludedDirectories []string `yaml:"excluded_directories"`
@@ -18,7 +17,7 @@ type VirusDetection struct {
 	stopChan            chan interface{}
 }
 
-func (t *VirusDetection) StopChan() chan interface{} {
+func (t *FullSystemVirusDetection) StopChan() chan interface{} {
 	if t.stopChan == nil {
 		t.stopChan = make(chan interface{})
 	}
@@ -26,16 +25,16 @@ func (t *VirusDetection) StopChan() chan interface{} {
 	return t.stopChan
 }
 
-func (t *VirusDetection) StopTask() {
+func (t *FullSystemVirusDetection) StopTask() {
 	t.stopTask = true
 }
 
-func (t *VirusDetection) IsStopped() bool {
+func (t *FullSystemVirusDetection) IsStopped() bool {
 	return t.stopTask
 }
 
-func (t *VirusDetection) ExecuteTask() error {
-	err := t.initialScan()
+func (t *FullSystemVirusDetection) ExecuteTask() error {
+	err := t.doScan()
 	if err != nil {
 		return err
 	}
@@ -43,7 +42,7 @@ func (t *VirusDetection) ExecuteTask() error {
 	return nil
 }
 
-func (t *VirusDetection) initialScan() error {
+func (t *FullSystemVirusDetection) doScan() error {
 
 	if t.AllDirectories {
 		return t.walkPath("/")
@@ -53,7 +52,7 @@ func (t *VirusDetection) initialScan() error {
 
 }
 
-func (t *VirusDetection) walkPaths(paths []string) error {
+func (t *FullSystemVirusDetection) walkPaths(paths []string) error {
 	for _, path := range paths {
 		err := t.walkPath(path)
 		if err != nil {
@@ -64,7 +63,7 @@ func (t *VirusDetection) walkPaths(paths []string) error {
 	return nil
 }
 
-func (t *VirusDetection) walkPath(startingPath string) error {
+func (t *FullSystemVirusDetection) walkPath(startingPath string) error {
 	err := filepath.Walk(startingPath, func(path string, info fs.FileInfo, err error) error {
 
 		if t.stopTask {
@@ -73,21 +72,22 @@ func (t *VirusDetection) walkPath(startingPath string) error {
 
 		//ignore files we don't have access to
 		if errors.Is(err, fs.ErrPermission) {
-			log.Printf("Skipping directory %s - access denied", path)
-			return filepath.SkipDir
+			if info != nil && info.IsDir() {
+				log.Printf("Skipping directory %s - access denied", path)
+				return filepath.SkipDir
+			} else {
+				return nil
+			}
 		}
 
-		if info.IsDir() && t.ignoreDirectory(path) {
+		if info != nil && info.IsDir() && t.ignoreDirectory(path) {
 			log.Println(path, " is listed in exclude configuration - skipping")
 			return filepath.SkipDir
 		}
 
-		if info.Mode().IsRegular() {
-			clamav := goclam.GetClEngineInstance()
-			fileReport := clamav.ScanFile(path)
-
-			if fileReport.HasPotentialIssue {
-				err := virusDetected(fileReport)
+		if info != nil && info.Mode().IsRegular() {
+			err = scanFileAndReact(path)
+			if err != nil {
 				return err
 			}
 
@@ -99,15 +99,15 @@ func (t *VirusDetection) walkPath(startingPath string) error {
 	return err
 }
 
-func (t *VirusDetection) GetDuration() time.Duration {
-	return 60 * time.Minute
+func (t *FullSystemVirusDetection) GetDuration() time.Duration {
+	return 120 * time.Minute
 }
 
-func (t *VirusDetection) GetTaskName() string {
-	return "VirusDetection"
+func (t *FullSystemVirusDetection) GetTaskName() string {
+	return "FullSystemVirusDetection"
 }
 
-func (t *VirusDetection) ignoreDirectory(path string) bool {
+func (t *FullSystemVirusDetection) ignoreDirectory(path string) bool {
 	for _, file := range t.ExcludedDirectories {
 		if strings.Contains(path, file) {
 			return true
